@@ -1,0 +1,101 @@
+<?php
+/**  
+ * Implements hook_menu().  
+ */  
+function examples_menu() {  
+  $items['add/%ctools_js/review'] = array(  
+    'page callback'    => 'examples_ctools_modal_review',
+    'page arguments'   => array(1),  
+    'access arguments' => array('create review content'),
+  );  
+  return $items;  
+} 
+
+
+/**  
+ * Implements hook_block_info().  
+ */  
+function examples_block_info(){  
+  $blocks['add_review'] = array(  
+    'info' => t('Add review'),  
+  );  
+  return $blocks;  
+}  
+
+
+/**  
+ * Implements hook_block_view().  
+ */  
+function examples_block_view($delta = '') {  
+  switch ($delta) {  
+    case 'add_review':  
+      ctools_include('ajax');  
+      ctools_include('modal');  
+      ctools_modal_add_js();  
+      $news_id = arg(1); 
+      if (is_numeric($news_id)) { 
+        // в ссылки должен быть класс "ctools-use-modal"   
+        $block['content'] = l(t('Add a review'), "add/nojs/review/{$news_id}", array('html' => TRUE, 'attributes' => array('class' => "ctools-use-modal")));  
+      } 
+      break;  
+  }  
+  return $block;  
+} 
+
+
+/** 
+ * Implements hook_form_alter(). 
+ */ 
+function examples_form_alter(&$form, &$form_state, $form_id) {
+  switch ($form_id) { 
+    case 'review_node_form': 
+      $news_id = arg(3); 
+      if (is_numeric(arg(3))) { 
+        $lang = field_language('node', $form['#node'], 'field_news');
+        // объ€вл€ем дефолтное значение дл€ пол€ field_news на форме создани€ отзыва
+        $form['field_news'][$lang][0]['nid']['#default_value'] = $news_id; 
+      } 
+  } 
+} 
+
+
+/**  
+ * Page callback for modal review creation.  
+ */  
+function examples_ctools_modal_review($js = FALSE) { 
+  //грузим библиотеки ctools'a  
+  ctools_include('node.pages', 'node', '');  
+  ctools_include('modal');  
+  ctools_include('ajax');  
+  global $user;  
+  $type = 'review';  
+  $node = (object) array(  
+    'uid' => $user->uid,   
+    'name' => (isset($user->name) ? $user->name : ''),  
+    'type' => $type,   
+    'language' => LANGUAGE_NONE);  
+   // при выключенных скриптах грузим форму создани€ ноды
+  if (!$js) {  
+    return drupal_get_form($type . '_node_form', $node);
+  }  
+  // формируем массив $form_state  
+  $form_state = array(  
+    'title' => t('Add Review'),  
+    'ajax'  => TRUE,  
+  );  
+  $form_state['build_info']['args'] = array($node);  
+  $output = ctools_modal_form_wrapper($type . '_node_form', $form_state);
+  // действи€ после сабмита формы  
+  if (!empty($form_state['executed'])) {  
+    $output = array();  
+    // закрываем попап  
+    $output[] = ctools_modal_command_dismiss(); 
+    $news_id = arg(3); 
+    // вставл€ем обновленную вьюшку на страницу 
+    if (is_numeric(arg(3))) { 
+      $output[] = ajax_command_html('.latest-reviews-full-style ', views_embed_view('reviews', 'block', arg(3))); 
+    } 
+  }  
+  print ajax_render($output);  
+} 
+?>
